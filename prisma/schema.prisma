@@ -1,0 +1,403 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== RBAC TABLES ====================
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // 'viewer', 'editor', 'admin'
+  description String?
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  permissions RolePermission[]
+  members     OrganizationMember[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id       String @id @default(uuid())
+  resource String // 'vehicles', 'trips', 'drivers', 'reports', 'settings', 'members'
+  action   String // 'read', 'write', 'delete', 'manage'
+
+  roles RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model OrganizationMember {
+  id          String   @id @default(uuid())
+  clerkUserId String   @map("clerk_user_id")
+  clerkOrgId  String   @map("clerk_org_id")
+  roleId      String   @map("role_id")
+  invitedBy   String?  @map("invited_by")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([clerkUserId, clerkOrgId])
+  @@index([clerkOrgId])
+  @@map("organization_members")
+}
+
+model Invitation {
+  id         String    @id @default(uuid())
+  email      String
+  clerkOrgId String    @map("clerk_org_id")
+  roleId     String    @map("role_id")
+  token      String    @unique
+  invitedBy  String    @map("invited_by")
+  expiresAt  DateTime  @map("expires_at")
+  acceptedAt DateTime? @map("accepted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([clerkOrgId])
+  @@index([token])
+  @@map("invitations")
+}
+
+// ==================== MASTER DATA TABLES ====================
+
+model Vehicle {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  vehNo          String   @map("veh_no")
+  vehType        String   @default("") @map("veh_type")
+  totalTrip      Int      @default(0) @map("total_trip")
+  netProfit      Decimal  @default(0) @db.Decimal(12, 2) @map("net_profit")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([organizationId, vehNo])
+  @@index([organizationId])
+  @@map("vehicles")
+}
+
+model Driver {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  contactNo      String   @default("") @map("contact_no")
+  drCr           String   @default("") @map("dr_cr")
+  openBal        Decimal  @default(0) @db.Decimal(12, 2) @map("open_bal")
+  remark         String   @default("")
+  debit          Decimal  @default(0) @db.Decimal(12, 2)
+  credit         Decimal  @default(0) @db.Decimal(12, 2)
+  closeBal       Decimal  @default(0) @db.Decimal(12, 2) @map("close_bal")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@map("drivers")
+}
+
+model BillingParty {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  contactNo      String   @default("") @map("contact_no")
+  drCr           String   @default("") @map("dr_cr")
+  openBal        Decimal  @default(0) @db.Decimal(12, 2) @map("open_bal")
+  remark         String   @default("")
+  billAmtTrip    Decimal  @default(0) @db.Decimal(12, 2) @map("bill_amt_trip")
+  billAmtRt      Decimal  @default(0) @db.Decimal(12, 2) @map("bill_amt_rt")
+  receiveAmt     Decimal  @default(0) @db.Decimal(12, 2) @map("receive_amt")
+  balanceAmt     Decimal  @default(0) @db.Decimal(12, 2) @map("balance_amt")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tripBooks     TripBook[]
+  returnTrips   ReturnTrip[]
+  partyPayments PartyPayment[]
+
+  @@index([organizationId])
+  @@map("billing_parties")
+}
+
+model Transporter {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  vehNo          String   @map("veh_no")
+  name           String
+  drCr           String   @default("") @map("dr_cr")
+  openBal        Decimal  @default(0) @db.Decimal(12, 2) @map("open_bal")
+  remark         String   @default("")
+  totalTrip      Int      @default(0) @map("total_trip")
+  profit         Decimal  @default(0) @db.Decimal(12, 2)
+  billAmt        Decimal  @default(0) @db.Decimal(12, 2) @map("bill_amt")
+  paidAmt        Decimal  @default(0) @db.Decimal(12, 2) @map("paid_amt")
+  closeBal       Decimal  @default(0) @db.Decimal(12, 2) @map("close_bal")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tripBooks         TripBook[]
+  marketVehPayments MarketVehPayment[]
+
+  @@index([organizationId])
+  @@map("transporters")
+}
+
+model ExpenseCategory {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  mode           String // 'General', 'Expenses', 'Fuel'
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@map("expense_categories")
+}
+
+model PaymentMode {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("payment_modes")
+}
+
+model StockItem {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  openQty        Decimal  @default(0) @db.Decimal(10, 2) @map("open_qty")
+  stkIn          Decimal  @default(0) @db.Decimal(10, 2) @map("stk_in")
+  stkOut         Decimal  @default(0) @db.Decimal(10, 2) @map("stk_out")
+  closeQty       Decimal  @default(0) @db.Decimal(10, 2) @map("close_qty")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  stockEntries StockEntry[]
+
+  @@index([organizationId])
+  @@map("stock_items")
+}
+
+// ==================== TRANSACTION TABLES ====================
+
+model Trip {
+  id              String   @id @default(uuid())
+  organizationId  String   @map("organization_id")
+  tripNo          Int      @map("trip_no")
+  date            DateTime @db.Date
+  vehNo           String   @map("veh_no")
+  driverName      String   @default("") @map("driver_name")
+  fromLocation    String   @map("from_location")
+  toLocation      String   @map("to_location")
+  tripKm          Int      @default(0) @map("trip_km")
+  fuelExpAmt      Decimal  @default(0) @db.Decimal(12, 2) @map("fuel_exp_amt")
+  average         Decimal  @default(0) @db.Decimal(6, 2)
+  tripFare        Decimal  @default(0) @db.Decimal(12, 2) @map("trip_fare")
+  rtFare          Decimal  @default(0) @db.Decimal(12, 2) @map("rt_fare")
+  totalTripFare   Decimal  @default(0) @db.Decimal(12, 2) @map("total_trip_fare")
+  tripExpense     Decimal  @default(0) @db.Decimal(12, 2) @map("trip_expense")
+  profitStatement Decimal  @default(0) @db.Decimal(12, 2) @map("profit_statement")
+  stMiter         Int      @default(0) @map("st_miter")
+  endMiter        Int      @default(0) @map("end_miter")
+  dieselRate      Decimal  @default(0) @db.Decimal(6, 2) @map("diesel_rate")
+  ltr             Decimal  @default(0) @db.Decimal(10, 2)
+  isMarketTrip    Boolean  @default(false) @map("is_market_trip")
+  exIncome        Decimal  @default(0) @db.Decimal(12, 2) @map("ex_income")
+  driverBal       Decimal  @default(0) @db.Decimal(12, 2) @map("driver_bal")
+  lockStatus      Boolean  @default(false) @map("lock_status")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([organizationId, tripNo])
+  @@index([organizationId])
+  @@map("trips")
+}
+
+model TripBook {
+  id               String   @id @default(uuid())
+  organizationId   String   @map("organization_id")
+  tripNo           Int      @map("trip_no")
+  date             DateTime @db.Date
+  lrNo             String   @default("") @map("lr_no")
+  billingPartyId   String?  @map("billing_party_id")
+  billingPartyName String   @default("") @map("billing_party_name")
+  freightMode      String?  @map("freight_mode")
+  tripAmount       Decimal  @default(0) @db.Decimal(12, 2) @map("trip_amount")
+  advanceAmt       Decimal  @default(0) @db.Decimal(12, 2) @map("advance_amt")
+  shortageAmt      Decimal  @default(0) @db.Decimal(12, 2) @map("shortage_amt")
+  deductionAmt     Decimal  @default(0) @db.Decimal(12, 2) @map("deduction_amt")
+  holdingAmt       Decimal  @default(0) @db.Decimal(12, 2) @map("holding_amt")
+  receivedAmt      Decimal  @default(0) @db.Decimal(12, 2) @map("received_amt")
+  pendingAmt       Decimal  @default(0) @db.Decimal(12, 2) @map("pending_amt")
+  transporterId    String?  @map("transporter_id")
+  transporterName  String   @default("") @map("transporter_name")
+  marketVehNo      String   @default("") @map("market_veh_no")
+  marketFreight    Decimal  @default(0) @db.Decimal(12, 2) @map("market_freight")
+  marketAdvance    Decimal  @default(0) @db.Decimal(12, 2) @map("market_advance")
+  marketBalance    Decimal  @default(0) @db.Decimal(12, 2) @map("market_balance")
+  lWeight          Decimal  @default(0) @db.Decimal(10, 2) @map("l_weight")
+  uWeight          Decimal  @default(0) @db.Decimal(10, 2) @map("u_weight")
+  remark           String   @default("")
+  netProfit        Decimal  @default(0) @db.Decimal(12, 2) @map("net_profit")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  billingParty BillingParty? @relation(fields: [billingPartyId], references: [id], onDelete: SetNull)
+  transporter  Transporter?  @relation(fields: [transporterId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("trip_books")
+}
+
+model DriverAdvance {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  tripNo         Int      @default(0) @map("trip_no")
+  date           DateTime @db.Date
+  driverName     String   @map("driver_name")
+  mode           String   @default("")
+  fromAccount    String   @default("") @map("from_account")
+  debit          Decimal  @default(0) @db.Decimal(12, 2)
+  credit         Decimal  @default(0) @db.Decimal(12, 2)
+  fuelLtr        Decimal  @default(0) @db.Decimal(10, 2) @map("fuel_ltr")
+  remark         String   @default("")
+  runBal         Decimal  @default(0) @db.Decimal(12, 2) @map("run_bal")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@map("driver_advances")
+}
+
+model Expense {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  tripNo         Int      @default(0) @map("trip_no")
+  date           DateTime @db.Date
+  expenseType    String   @map("expense_type")
+  amount         Decimal  @db.Decimal(12, 2)
+  fromAccount    String   @default("") @map("from_account")
+  refVehNo       String   @default("") @map("ref_veh_no")
+  remark1        String   @default("")
+  remark2        String   @default("")
+  isNonTripExp   Boolean  @default(false) @map("is_non_trip_exp")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId])
+  @@map("expenses")
+}
+
+model ReturnTrip {
+  id               String   @id @default(uuid())
+  organizationId   String   @map("organization_id")
+  tripNo           Int      @default(0) @map("trip_no")
+  date             DateTime @db.Date
+  billingPartyId   String?  @map("billing_party_id")
+  billingPartyName String   @default("") @map("billing_party_name")
+  lrNo             String   @default("") @map("lr_no")
+  rtFreight        Decimal  @default(0) @db.Decimal(12, 2) @map("rt_freight")
+  advanceAmt       Decimal  @default(0) @db.Decimal(12, 2) @map("advance_amt")
+  shortageAmt      Decimal  @default(0) @db.Decimal(12, 2) @map("shortage_amt")
+  deductionAmt     Decimal  @default(0) @db.Decimal(12, 2) @map("deduction_amt")
+  holdingAmt       Decimal  @default(0) @db.Decimal(12, 2) @map("holding_amt")
+  receivedAmt      Decimal  @default(0) @db.Decimal(12, 2) @map("received_amt")
+  pendingAmt       Decimal  @default(0) @db.Decimal(12, 2) @map("pending_amt")
+  mode             String   @default("")
+  toBank           String   @default("") @map("to_bank")
+  remark           String   @default("")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  billingParty BillingParty? @relation(fields: [billingPartyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("return_trips")
+}
+
+model PartyPayment {
+  id               String   @id @default(uuid())
+  organizationId   String   @map("organization_id")
+  tripNo           Int      @default(0) @map("trip_no")
+  date             DateTime @db.Date
+  billingPartyId   String?  @map("billing_party_id")
+  billingPartyName String   @default("") @map("billing_party_name")
+  mode             String   @default("")
+  receiveAmt       Decimal  @default(0) @db.Decimal(12, 2) @map("receive_amt")
+  shortageAmt      Decimal  @default(0) @db.Decimal(12, 2) @map("shortage_amt")
+  deductionAmt     Decimal  @default(0) @db.Decimal(12, 2) @map("deduction_amt")
+  lrNo             String   @default("") @map("lr_no")
+  toBank           String   @default("") @map("to_bank")
+  remark           String   @default("")
+  runBal           Decimal  @default(0) @db.Decimal(12, 2) @map("run_bal")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  billingParty BillingParty? @relation(fields: [billingPartyId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("party_payments")
+}
+
+model MarketVehPayment {
+  id              String   @id @default(uuid())
+  organizationId  String   @map("organization_id")
+  tripNo          Int      @default(0) @map("trip_no")
+  date            DateTime @db.Date
+  transporterId   String?  @map("transporter_id")
+  transporterName String   @default("") @map("transporter_name")
+  marketVehNo     String   @default("") @map("market_veh_no")
+  mode            String   @default("")
+  paidAmt         Decimal  @default(0) @db.Decimal(12, 2) @map("paid_amt")
+  lrNo            String   @default("") @map("lr_no")
+  fromBank        String   @default("") @map("from_bank")
+  remark          String   @default("")
+  runBal          Decimal  @default(0) @db.Decimal(12, 2) @map("run_bal")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  transporter Transporter? @relation(fields: [transporterId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("market_veh_payments")
+}
+
+model StockEntry {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  date           DateTime @db.Date
+  stockItemId    String?  @map("stock_item_id")
+  stockItemName  String   @default("") @map("stock_item_name")
+  entryType      String   @map("entry_type")
+  quantity       Decimal  @db.Decimal(10, 2)
+  remark         String   @default("")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  stockItem StockItem? @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("stock_entries")
+}
