@@ -48,7 +48,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
                         description: member.role.description,
                     },
                     permissions: member.role.permissions.map(
-                        (rp) => `${rp.permission.resource}:${rp.permission.action}`
+                        (rp: any) => `${rp.permission.resource}:${rp.permission.action}`
                     ),
                     joinedAt: member.joinedAt,
                 };
@@ -138,7 +138,7 @@ router.get('/members', requireAuth, requireOrg, loadMemberPermissions, requirePe
 
         // Fetch user details from Clerk for each member
         const membersWithDetails = await Promise.all(
-            members.map(async (member) => {
+            members.map(async (member: any) => {
                 try {
                     const user = await clerkClient.users.getUser(member.clerkUserId);
                     return {

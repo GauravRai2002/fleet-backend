@@ -24,7 +24,7 @@ router.get('/trips', asyncHandler(async (req: Request, res: Response) => {
 
     // Calculate summary
     const summary = trips.reduce(
-        (acc, trip) => ({
+        (acc: any, trip: any) => ({
             totalTrips: acc.totalTrips + 1,
             totalFare: acc.totalFare + Number(trip.totalTripFare),
             totalExpense: acc.totalExpense + Number(trip.tripExpense),
@@ -53,9 +53,9 @@ router.get('/balance-sheet', asyncHandler(async (_req: Request, res: Response) =
     });
 
     const partySummary = {
-        totalBillAmount: parties.reduce((sum, p) => sum + Number(p.billAmtTrip) + Number(p.billAmtRt), 0),
-        totalReceived: parties.reduce((sum, p) => sum + Number(p.receiveAmt), 0),
-        totalBalance: parties.reduce((sum, p) => sum + Number(p.balanceAmt), 0),
+        totalBillAmount: parties.reduce((sum: any, p: any) => sum + Number(p.billAmtTrip) + Number(p.billAmtRt), 0),
+        totalReceived: parties.reduce((sum: any, p: any) => sum + Number(p.receiveAmt), 0),
+        totalBalance: parties.reduce((sum: any, p: any) => sum + Number(p.balanceAmt), 0),
         parties,
     };
 
@@ -72,9 +72,9 @@ router.get('/balance-sheet', asyncHandler(async (_req: Request, res: Response) =
     });
 
     const driverSummary = {
-        totalDebit: drivers.reduce((sum, d) => sum + Number(d.debit), 0),
-        totalCredit: drivers.reduce((sum, d) => sum + Number(d.credit), 0),
-        totalBalance: drivers.reduce((sum, d) => sum + Number(d.closeBal), 0),
+        totalDebit: drivers.reduce((sum: any, d: any) => sum + Number(d.debit), 0),
+        totalCredit: drivers.reduce((sum: any, d: any) => sum + Number(d.credit), 0),
+        totalBalance: drivers.reduce((sum: any, d: any) => sum + Number(d.closeBal), 0),
         drivers,
     };
 
@@ -92,9 +92,9 @@ router.get('/balance-sheet', asyncHandler(async (_req: Request, res: Response) =
     });
 
     const transporterSummary = {
-        totalBillAmount: transporters.reduce((sum, t) => sum + Number(t.billAmt), 0),
-        totalPaid: transporters.reduce((sum, t) => sum + Number(t.paidAmt), 0),
-        totalBalance: transporters.reduce((sum, t) => sum + Number(t.closeBal), 0),
+        totalBillAmount: transporters.reduce((sum: any, t: any) => sum + Number(t.billAmt), 0),
+        totalPaid: transporters.reduce((sum: any, t: any) => sum + Number(t.paidAmt), 0),
+        totalBalance: transporters.reduce((sum: any, t: any) => sum + Number(t.closeBal), 0),
         transporters,
     };
 
