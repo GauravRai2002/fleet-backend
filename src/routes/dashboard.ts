@@ -5,18 +5,21 @@ import { asyncHandler } from '../middleware/errorHandler';
 const router = Router();
 
 // GET dashboard statistics
-router.get('/stats', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/stats', asyncHandler(async (req: Request, res: Response) => {
+    const orgId = req.auth!.orgId!;
+
     // Get counts
     const [vehicleCount, driverCount, partyCount, transporterCount, tripCount] = await Promise.all([
-        prisma.vehicle.count(),
-        prisma.driver.count(),
-        prisma.billingParty.count(),
-        prisma.transporter.count(),
-        prisma.trip.count(),
+        prisma.vehicle.count({ where: { organizationId: orgId } }),
+        prisma.driver.count({ where: { organizationId: orgId } }),
+        prisma.billingParty.count({ where: { organizationId: orgId } }),
+        prisma.transporter.count({ where: { organizationId: orgId } }),
+        prisma.trip.count({ where: { organizationId: orgId } }),
     ]);
 
     // Get financial summary from trips
     const tripStats = await prisma.trip.aggregate({
+        where: { organizationId: orgId },
         _sum: {
             totalTripFare: true,
             tripExpense: true,
@@ -26,6 +29,7 @@ router.get('/stats', asyncHandler(async (_req: Request, res: Response) => {
 
     // Get recent trips
     const recentTrips = await prisma.trip.findMany({
+        where: { organizationId: orgId },
         take: 5,
         orderBy: { createdAt: 'desc' },
         select: {

@@ -8,7 +8,7 @@ const router = Router();
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const { tripNo, transporterId } = req.query;
 
-    const where: any = {};
+    const where: any = { organizationId: req.auth!.orgId! };
     if (tripNo) where.tripNo = Number(tripNo);
     if (transporterId) where.transporterId = transporterId as string;
 
@@ -24,8 +24,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // GET single market vehicle payment
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const payment = await prisma.marketVehPayment.findUnique({
-        where: { id: req.params.id },
+    const payment = await prisma.marketVehPayment.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
         include: {
             transporter: { select: { id: true, name: true } },
         },
@@ -63,7 +63,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
     // Update transporter paid amount
     if (transporterId) {
-        const transporter = await prisma.transporter.findUnique({ where: { id: transporterId } });
+        const transporter = await prisma.transporter.findFirst({ where: { id: transporterId, organizationId: req.auth!.orgId! } });
         if (transporter) {
             const newPaidAmt = Number(transporter.paidAmt) + (paidAmt || 0);
             const closeBal = Number(transporter.openBal) + Number(transporter.billAmt) - newPaidAmt;
@@ -84,6 +84,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
         tripNo, date, transporterId, transporterName, marketVehNo,
         mode, paidAmt, lrNo, fromBank, remark, runBal
     } = req.body;
+
+    const existing = await prisma.marketVehPayment.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Market vehicle payment not found');
+    }
 
     const payment = await prisma.marketVehPayment.update({
         where: { id: req.params.id },
@@ -106,6 +111,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE market vehicle payment
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.marketVehPayment.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Market vehicle payment not found');
+    }
+
     await prisma.marketVehPayment.delete({
         where: { id: req.params.id },
     });

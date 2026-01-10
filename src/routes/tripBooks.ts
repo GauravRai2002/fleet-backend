@@ -26,7 +26,7 @@ const calculateTripBookValues = (data: {
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const { tripNo } = req.query;
 
-    const where: any = {};
+    const where: any = { organizationId: req.auth!.orgId! };
     if (tripNo) where.tripNo = Number(tripNo);
 
     const tripBooks = await prisma.tripBook.findMany({
@@ -42,8 +42,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // GET single trip book
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const tripBook = await prisma.tripBook.findUnique({
-        where: { id: req.params.id },
+    const tripBook = await prisma.tripBook.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
         include: {
             billingParty: { select: { id: true, name: true } },
             transporter: { select: { id: true, name: true } },
@@ -115,7 +115,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
 // PUT update trip book
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const existing = await prisma.tripBook.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.tripBook.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
     if (!existing) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Trip book not found');
     }
@@ -178,6 +178,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE trip book
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.tripBook.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Trip book not found');
+    }
+
     await prisma.tripBook.delete({
         where: { id: req.params.id },
     });

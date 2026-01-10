@@ -10,8 +10,9 @@ const calculateBalance = (openBal: number | any, billAmtTrip: number | any, bill
 };
 
 // GET all billing parties
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const parties = await prisma.billingParty.findMany({
+        where: { organizationId: req.auth!.orgId! },
         orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: parties });
@@ -19,8 +20,11 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
 // GET single billing party
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const party = await prisma.billingParty.findUnique({
-        where: { id: req.params.id },
+    const party = await prisma.billingParty.findFirst({
+        where: {
+            id: req.params.id,
+            organizationId: req.auth!.orgId!
+        },
     });
     if (!party) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Billing party not found');
@@ -56,7 +60,9 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     const { name, contactNo, drCr, openBal, remark, billAmtTrip, billAmtRt, receiveAmt } = req.body;
 
-    const existing = await prisma.billingParty.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.billingParty.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! }
+    });
     if (!existing) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Billing party not found');
     }
@@ -86,6 +92,13 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE billing party
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.billingParty.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! }
+    });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Billing party not found');
+    }
+
     await prisma.billingParty.delete({
         where: { id: req.params.id },
     });

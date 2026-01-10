@@ -71,6 +71,86 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/auth/my-invitations
+ * Get all pending organization invitations for the current user
+ * Uses the user's email from their Clerk profile (no orgId required)
+ */
+router.get('/my-invitations', requireAuth, async (req: Request, res: Response) => {
+    try {
+        const { userId } = req.auth!;
+
+        // Get user info from Clerk to get their email
+        const user = await clerkClient.users.getUser(userId);
+        const primaryEmail = user.emailAddresses.find(
+            (email) => email.id === user.primaryEmailAddressId
+        )?.emailAddress;
+
+        if (!primaryEmail) {
+            return res.status(400).json({ error: 'User has no email address' });
+        }
+
+        // Find all pending invitations for this email (not yet accepted and not expired)
+        const invitations = await prisma.invitation.findMany({
+            where: {
+                email: primaryEmail,
+                acceptedAt: null, // Not yet accepted = pending
+                expiresAt: { gt: new Date() }, // Not expired
+            },
+        });
+
+        // Get organization and role details for each invitation
+        const invitationsWithDetails = await Promise.all(
+            invitations.map(async (inv) => {
+                // Get role details
+                const role = await prisma.role.findUnique({
+                    where: { id: inv.roleId },
+                    select: { id: true, name: true, description: true },
+                });
+
+                // Get organization name from Clerk
+                let organization;
+                try {
+                    const org = await clerkClient.organizations.getOrganization({
+                        organizationId: inv.clerkOrgId,
+                    });
+                    organization = {
+                        id: org.id,
+                        name: org.name,
+                        slug: org.slug,
+                        imageUrl: org.imageUrl,
+                    };
+                } catch {
+                    organization = {
+                        id: inv.clerkOrgId,
+                        name: 'Unknown Organization',
+                    };
+                }
+
+                return {
+                    id: inv.id,
+                    email: inv.email,
+                    expiresAt: inv.expiresAt,
+                    createdAt: inv.createdAt,
+                    role,
+                    organization,
+                };
+            })
+        );
+        res.json({
+            success: true,
+            data: {
+                email: primaryEmail,
+                invitations: invitationsWithDetails,
+                count: invitationsWithDetails.length,
+            },
+        });
+    } catch (error) {
+        console.error('Get invitations error:', error);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+/**
  * POST /api/auth/setup-member
  * Called after organization creation to set up the creator as admin
  */

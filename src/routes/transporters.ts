@@ -10,8 +10,9 @@ const calculateCloseBal = (openBal: number | any, billAmt: number | any, paidAmt
 };
 
 // GET all transporters
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const transporters = await prisma.transporter.findMany({
+        where: { organizationId: req.auth!.orgId! },
         orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: transporters });
@@ -19,8 +20,8 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
 // GET single transporter
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const transporter = await prisma.transporter.findUnique({
-        where: { id: req.params.id },
+    const transporter = await prisma.transporter.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
     });
     if (!transporter) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Transporter not found');
@@ -59,7 +60,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     const { vehNo, name, drCr, openBal, remark, totalTrip, profit, billAmt, paidAmt } = req.body;
 
-    const existing = await prisma.transporter.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.transporter.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
     if (!existing) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Transporter not found');
     }
@@ -89,6 +90,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE transporter
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.transporter.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Transporter not found');
+    }
+
     await prisma.transporter.delete({
         where: { id: req.params.id },
     });

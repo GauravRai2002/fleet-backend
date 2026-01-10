@@ -8,7 +8,7 @@ const router = Router();
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const { tripNo, driverName } = req.query;
 
-    const where: any = {};
+    const where: any = { organizationId: req.auth!.orgId! };
     if (tripNo) where.tripNo = Number(tripNo);
     if (driverName) where.driverName = { contains: driverName as string, mode: 'insensitive' };
 
@@ -21,8 +21,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // GET single driver advance
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const advance = await prisma.driverAdvance.findUnique({
-        where: { id: req.params.id },
+    const advance = await prisma.driverAdvance.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
     });
     if (!advance) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Driver advance not found');
@@ -53,7 +53,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     });
 
     // Update driver balance
-    const driver = await prisma.driver.findFirst({ where: { name: driverName } });
+    const driver = await prisma.driver.findFirst({ where: { name: driverName, organizationId: req.auth!.orgId! } });
     if (driver) {
         const newDebit = Number(driver.debit) + (debit || 0);
         const newCredit = Number(driver.credit) + (credit || 0);
@@ -71,6 +71,11 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 // PUT update driver advance
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     const { tripNo, date, driverName, mode, fromAccount, debit, credit, fuelLtr, remark, runBal } = req.body;
+
+    const existing = await prisma.driverAdvance.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Driver advance not found');
+    }
 
     const advance = await prisma.driverAdvance.update({
         where: { id: req.params.id },
@@ -92,6 +97,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE driver advance
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.driverAdvance.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Driver advance not found');
+    }
+
     await prisma.driverAdvance.delete({
         where: { id: req.params.id },
     });

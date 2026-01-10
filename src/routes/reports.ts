@@ -8,7 +8,7 @@ const router = Router();
 router.get('/trips', asyncHandler(async (req: Request, res: Response) => {
     const { fromDate, toDate, vehicleNo, driverName } = req.query;
 
-    const where: any = {};
+    const where: any = { organizationId: req.auth!.orgId! };
     if (fromDate || toDate) {
         where.date = {};
         if (fromDate) where.date.gte = new Date(fromDate as string);
@@ -38,9 +38,12 @@ router.get('/trips', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // GET balance sheet
-router.get('/balance-sheet', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/balance-sheet', asyncHandler(async (req: Request, res: Response) => {
+    const orgId = req.auth!.orgId!;
+
     // Party summary
     const parties = await prisma.billingParty.findMany({
+        where: { organizationId: orgId },
         select: {
             id: true,
             name: true,
@@ -61,6 +64,7 @@ router.get('/balance-sheet', asyncHandler(async (_req: Request, res: Response) =
 
     // Driver summary
     const drivers = await prisma.driver.findMany({
+        where: { organizationId: orgId },
         select: {
             id: true,
             name: true,
@@ -80,6 +84,7 @@ router.get('/balance-sheet', asyncHandler(async (_req: Request, res: Response) =
 
     // Transporter summary
     const transporters = await prisma.transporter.findMany({
+        where: { organizationId: orgId },
         select: {
             id: true,
             name: true,

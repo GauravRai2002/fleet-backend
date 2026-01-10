@@ -8,7 +8,7 @@ const router = Router();
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const { tripNo, expenseType } = req.query;
 
-    const where: any = {};
+    const where: any = { organizationId: req.auth!.orgId! };
     if (tripNo) where.tripNo = Number(tripNo);
     if (expenseType) where.expenseType = { contains: expenseType as string, mode: 'insensitive' };
 
@@ -21,8 +21,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // GET single expense
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const expense = await prisma.expense.findUnique({
-        where: { id: req.params.id },
+    const expense = await prisma.expense.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
     });
     if (!expense) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Expense not found');
@@ -59,6 +59,11 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     const { tripNo, date, expenseType, amount, fromAccount, refVehNo, remark1, remark2, isNonTripExp } = req.body;
 
+    const existing = await prisma.expense.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Expense not found');
+    }
+
     const expense = await prisma.expense.update({
         where: { id: req.params.id },
         data: {
@@ -78,6 +83,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE expense
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.expense.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Expense not found');
+    }
+
     await prisma.expense.delete({
         where: { id: req.params.id },
     });

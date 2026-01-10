@@ -8,7 +8,7 @@ const router = Router();
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const { stockItemId, entryType } = req.query;
 
-    const where: any = {};
+    const where: any = { organizationId: req.auth!.orgId! };
     if (stockItemId) where.stockItemId = stockItemId as string;
     if (entryType) where.entryType = entryType as string;
 
@@ -24,8 +24,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // GET single stock entry
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const entry = await prisma.stockEntry.findUnique({
-        where: { id: req.params.id },
+    const entry = await prisma.stockEntry.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
         include: {
             stockItem: { select: { id: true, name: true } },
         },
@@ -60,7 +60,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
     // Update stock item quantity
     if (stockItemId) {
-        const stockItem = await prisma.stockItem.findUnique({ where: { id: stockItemId } });
+        const stockItem = await prisma.stockItem.findFirst({ where: { id: stockItemId, organizationId: req.auth!.orgId! } });
         if (stockItem) {
             let newStkIn = Number(stockItem.stkIn);
             let newStkOut = Number(stockItem.stkOut);
@@ -91,6 +91,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
         throw new ApiError(400, ErrorCodes.VALIDATION_ERROR, 'Entry type must be IN or OUT', 'entryType');
     }
 
+    const existing = await prisma.stockEntry.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Stock entry not found');
+    }
+
     const entry = await prisma.stockEntry.update({
         where: { id: req.params.id },
         data: {
@@ -107,6 +112,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE stock entry
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.stockEntry.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Stock entry not found');
+    }
+
     await prisma.stockEntry.delete({
         where: { id: req.params.id },
     });

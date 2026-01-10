@@ -5,8 +5,9 @@ import { asyncHandler, ApiError, ErrorCodes } from '../middleware/errorHandler';
 const router = Router();
 
 // GET all vehicles
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const vehicles = await prisma.vehicle.findMany({
+        where: { organizationId: req.auth!.orgId! },
         orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: vehicles });
@@ -14,8 +15,11 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
 // GET single vehicle by ID
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const vehicle = await prisma.vehicle.findUnique({
-        where: { id: req.params.id },
+    const vehicle = await prisma.vehicle.findFirst({
+        where: {
+            id: req.params.id,
+            organizationId: req.auth!.orgId!
+        },
     });
     if (!vehicle) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Vehicle not found');
@@ -45,6 +49,14 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     const { vehNo, vehType, totalTrip, netProfit } = req.body;
 
+    // Verify ownership
+    const existing = await prisma.vehicle.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
+    });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Vehicle not found');
+    }
+
     const vehicle = await prisma.vehicle.update({
         where: { id: req.params.id },
         data: {
@@ -59,6 +71,14 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE vehicle
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    // Verify ownership
+    const existing = await prisma.vehicle.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
+    });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Vehicle not found');
+    }
+
     await prisma.vehicle.delete({
         where: { id: req.params.id },
     });

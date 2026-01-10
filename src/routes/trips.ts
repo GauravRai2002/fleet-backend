@@ -22,8 +22,9 @@ const calculateTripValues = (data: {
 };
 
 // GET next trip number
-router.get('/next-number', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/next-number', asyncHandler(async (req: Request, res: Response) => {
     const lastTrip = await prisma.trip.findFirst({
+        where: { organizationId: req.auth!.orgId! },
         orderBy: { tripNo: 'desc' },
         select: { tripNo: true },
     });
@@ -35,7 +36,7 @@ router.get('/next-number', asyncHandler(async (_req: Request, res: Response) => 
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const { fromDate, toDate, vehNo, driverName } = req.query;
 
-    const where: any = {};
+    const where: any = { organizationId: req.auth!.orgId! };
     if (fromDate || toDate) {
         where.date = {};
         if (fromDate) where.date.gte = new Date(fromDate as string);
@@ -53,8 +54,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // GET single trip
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const trip = await prisma.trip.findUnique({
-        where: { id: req.params.id },
+    const trip = await prisma.trip.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
     });
     if (!trip) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Trip not found');
@@ -76,8 +77,9 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
     if (!fromLocation) throw new ApiError(400, ErrorCodes.VALIDATION_ERROR, 'From location is required', 'fromLocation');
     if (!toLocation) throw new ApiError(400, ErrorCodes.VALIDATION_ERROR, 'To location is required', 'toLocation');
 
-    // Get next trip number
+    // Get next trip number for this organization
     const lastTrip = await prisma.trip.findFirst({
+        where: { organizationId: req.auth!.orgId! },
         orderBy: { tripNo: 'desc' },
         select: { tripNo: true },
     });
@@ -127,7 +129,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
 // PUT update trip
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const existing = await prisma.trip.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.trip.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
     if (!existing) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Trip not found');
     }
@@ -187,17 +189,20 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE trip
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const trip = await prisma.trip.findUnique({ where: { id: req.params.id } });
-    if (trip) {
-        // Decrement vehicle stats
-        await prisma.vehicle.updateMany({
-            where: { vehNo: trip.vehNo },
-            data: {
-                totalTrip: { decrement: 1 },
-                netProfit: { decrement: Number(trip.profitStatement) },
-            },
-        });
+    const trip = await prisma.trip.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!trip) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Trip not found');
     }
+
+    // Decrement vehicle stats
+    await prisma.vehicle.updateMany({
+        where: { vehNo: trip.vehNo, organizationId: req.auth!.orgId! },
+        data: {
+            totalTrip: { decrement: 1 },
+            netProfit: { decrement: Number(trip.profitStatement) },
+        },
+    });
+
     await prisma.trip.delete({
         where: { id: req.params.id },
     });

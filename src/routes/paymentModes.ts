@@ -5,8 +5,9 @@ import { asyncHandler, ApiError, ErrorCodes } from '../middleware/errorHandler';
 const router = Router();
 
 // GET all payment modes
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const modes = await prisma.paymentMode.findMany({
+        where: { organizationId: req.auth!.orgId! },
         orderBy: { name: 'asc' },
     });
     res.json({ success: true, data: modes });
@@ -14,8 +15,8 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
 // GET single payment mode
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const mode = await prisma.paymentMode.findUnique({
-        where: { id: req.params.id },
+    const mode = await prisma.paymentMode.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
     });
     if (!mode) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Payment mode not found');
@@ -41,6 +42,13 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     const { name } = req.body;
 
+    const existing = await prisma.paymentMode.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
+    });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Payment mode not found');
+    }
+
     const mode = await prisma.paymentMode.update({
         where: { id: req.params.id },
         data: {
@@ -52,6 +60,13 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE payment mode
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.paymentMode.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
+    });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Payment mode not found');
+    }
+
     await prisma.paymentMode.delete({
         where: { id: req.params.id },
     });

@@ -21,7 +21,7 @@ const calculateReturnTripValues = (data: {
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const { tripNo } = req.query;
 
-    const where: any = {};
+    const where: any = { organizationId: req.auth!.orgId! };
     if (tripNo) where.tripNo = Number(tripNo);
 
     const returnTrips = await prisma.returnTrip.findMany({
@@ -36,8 +36,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // GET single return trip
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const returnTrip = await prisma.returnTrip.findUnique({
-        where: { id: req.params.id },
+    const returnTrip = await prisma.returnTrip.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
         include: {
             billingParty: { select: { id: true, name: true } },
         },
@@ -98,7 +98,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
 // PUT update return trip
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const existing = await prisma.returnTrip.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.returnTrip.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
     if (!existing) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Return trip not found');
     }
@@ -148,6 +148,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE return trip
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.returnTrip.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Return trip not found');
+    }
+
     await prisma.returnTrip.delete({
         where: { id: req.params.id },
     });

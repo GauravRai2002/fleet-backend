@@ -8,7 +8,7 @@ const router = Router();
 router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const { tripNo, billingPartyId } = req.query;
 
-    const where: any = {};
+    const where: any = { organizationId: req.auth!.orgId! };
     if (tripNo) where.tripNo = Number(tripNo);
     if (billingPartyId) where.billingPartyId = billingPartyId as string;
 
@@ -24,8 +24,8 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
 
 // GET single party payment
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const payment = await prisma.partyPayment.findUnique({
-        where: { id: req.params.id },
+    const payment = await prisma.partyPayment.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
         include: {
             billingParty: { select: { id: true, name: true } },
         },
@@ -64,7 +64,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 
     // Update billing party receive amount
     if (billingPartyId) {
-        const party = await prisma.billingParty.findUnique({ where: { id: billingPartyId } });
+        const party = await prisma.billingParty.findFirst({ where: { id: billingPartyId, organizationId: req.auth!.orgId! } });
         if (party) {
             const newReceiveAmt = Number(party.receiveAmt) + (receiveAmt || 0);
             const balanceAmt = Number(party.openBal) + Number(party.billAmtTrip) + Number(party.billAmtRt) - newReceiveAmt;
@@ -85,6 +85,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
         tripNo, date, billingPartyId, billingPartyName, mode,
         receiveAmt, shortageAmt, deductionAmt, lrNo, toBank, remark, runBal
     } = req.body;
+
+    const existing = await prisma.partyPayment.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Party payment not found');
+    }
 
     const payment = await prisma.partyPayment.update({
         where: { id: req.params.id },
@@ -108,6 +113,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE party payment
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.partyPayment.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Party payment not found');
+    }
+
     await prisma.partyPayment.delete({
         where: { id: req.params.id },
     });

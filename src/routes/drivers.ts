@@ -10,8 +10,9 @@ const calculateCloseBal = (openBal: number | any, debit: number | any, credit: n
 };
 
 // GET all drivers
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const drivers = await prisma.driver.findMany({
+        where: { organizationId: req.auth!.orgId! },
         orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: drivers });
@@ -19,8 +20,11 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
 // GET single driver
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const driver = await prisma.driver.findUnique({
-        where: { id: req.params.id },
+    const driver = await prisma.driver.findFirst({
+        where: {
+            id: req.params.id,
+            organizationId: req.auth!.orgId!
+        },
     });
     if (!driver) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Driver not found');
@@ -56,7 +60,9 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     const { name, contactNo, drCr, openBal, remark, debit, credit } = req.body;
 
-    const existing = await prisma.driver.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.driver.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! }
+    });
     if (!existing) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Driver not found');
     }
@@ -84,6 +90,13 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE driver
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.driver.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! }
+    });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Driver not found');
+    }
+
     await prisma.driver.delete({
         where: { id: req.params.id },
     });

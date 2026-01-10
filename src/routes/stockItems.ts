@@ -10,8 +10,9 @@ const calculateCloseQty = (openQty: number | any, stkIn: number | any, stkOut: n
 };
 
 // GET all stock items
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const items = await prisma.stockItem.findMany({
+        where: { organizationId: req.auth!.orgId! },
         orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: items });
@@ -19,8 +20,8 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
 // GET single stock item
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const item = await prisma.stockItem.findUnique({
-        where: { id: req.params.id },
+    const item = await prisma.stockItem.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
     });
     if (!item) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Stock item not found');
@@ -53,7 +54,7 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
 router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
     const { name, openQty, stkIn, stkOut } = req.body;
 
-    const existing = await prisma.stockItem.findUnique({ where: { id: req.params.id } });
+    const existing = await prisma.stockItem.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
     if (!existing) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Stock item not found');
     }
@@ -78,6 +79,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE stock item
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.stockItem.findFirst({ where: { id: req.params.id, organizationId: req.auth!.orgId! } });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Stock item not found');
+    }
+
     await prisma.stockItem.delete({
         where: { id: req.params.id },
     });

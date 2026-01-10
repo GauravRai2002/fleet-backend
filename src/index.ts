@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler';
+import { authMiddleware } from './middleware/auth';
 
 // Import routes
 import authRouter from './routes/auth';
@@ -46,6 +47,10 @@ app.get('/health', (_req, res) => {
 
 // API Routes
 app.use('/api/auth', authRouter);  // Auth routes (public + protected)
+
+// Apply authentication to all other API routes
+app.use('/api', authMiddleware);
+
 app.use('/api/vehicles', vehiclesRouter);
 app.use('/api/drivers', driversRouter);
 app.use('/api/billing-parties', billingPartiesRouter);

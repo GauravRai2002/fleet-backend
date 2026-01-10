@@ -23,6 +23,9 @@ declare global {
 
 /**
  * Middleware to verify Clerk JWT and extract user info
+ * Organization ID can be provided via:
+ * 1. x-organization-id header (takes precedence)
+ * 2. org_id claim in JWT
  */
 export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -37,9 +40,14 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         try {
             const payload = await clerkClient.verifyToken(token);
 
+            // Check for x-organization-id header first, fallback to JWT claim
+            const headerOrgId = req.headers['x-organization-id'] as string | undefined;
+            const jwtOrgId = (payload as { org_id?: string }).org_id;
+            const orgId = headerOrgId || jwtOrgId || null;
+
             req.auth = {
                 userId: payload.sub,
-                orgId: (payload as { org_id?: string }).org_id || null,
+                orgId,
                 sessionId: payload.sid || '',
             };
 

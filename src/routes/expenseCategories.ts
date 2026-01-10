@@ -5,8 +5,9 @@ import { asyncHandler, ApiError, ErrorCodes } from '../middleware/errorHandler';
 const router = Router();
 
 // GET all expense categories
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
     const categories = await prisma.expenseCategory.findMany({
+        where: { organizationId: req.auth!.orgId! },
         orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: categories });
@@ -14,8 +15,8 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
 // GET single expense category
 router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
-    const category = await prisma.expenseCategory.findUnique({
-        where: { id: req.params.id },
+    const category = await prisma.expenseCategory.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
     });
     if (!category) {
         throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Expense category not found');
@@ -60,6 +61,13 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
 
 // DELETE expense category
 router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+    const existing = await prisma.expenseCategory.findFirst({
+        where: { id: req.params.id, organizationId: req.auth!.orgId! },
+    });
+    if (!existing) {
+        throw new ApiError(404, ErrorCodes.NOT_FOUND, 'Expense category not found');
+    }
+
     await prisma.expenseCategory.delete({
         where: { id: req.params.id },
     });
