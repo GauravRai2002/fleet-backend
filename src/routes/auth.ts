@@ -400,4 +400,195 @@ router.delete('/invite/:id', requireAuth, requireOrg, loadMemberPermissions, req
     }
 });
 
+/**
+ * PUT /api/auth/invitations/:id/accept
+ * Accept an invitation to join an organization
+ * NOTE: Only requires auth, NOT membership - user is joining via this endpoint
+ */
+router.put('/invitations/:id/accept', requireAuth, async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { userId } = req.auth!;
+
+        // Get user email from Clerk
+        const user = await clerkClient.users.getUser(userId);
+        const userEmail = user.emailAddresses.find(
+            (email) => email.id === user.primaryEmailAddressId
+        )?.emailAddress;
+
+        if (!userEmail) {
+            return res.status(400).json({ error: 'User has no email address' });
+        }
+
+        // Find the invitation
+        const invitation = await prisma.invitation.findUnique({
+            where: { id },
+        });
+
+        if (!invitation) {
+            return res.status(404).json({ error: 'Invitation not found' });
+        }
+
+        // Verify invitation is for this user's email
+        if (invitation.email.toLowerCase() !== userEmail.toLowerCase()) {
+            return res.status(403).json({ error: 'This invitation is not for your email address' });
+        }
+
+        // Check if invitation is expired
+        if (invitation.expiresAt < new Date()) {
+            return res.status(410).json({ error: 'Invitation has expired' });
+        }
+
+        // Check if already accepted
+        if (invitation.acceptedAt) {
+            return res.status(400).json({ error: 'Invitation has already been accepted' });
+        }
+
+        // Check if user is already a member
+        const existingMember = await prisma.organizationMember.findUnique({
+            where: {
+                clerkUserId_clerkOrgId: {
+                    clerkUserId: userId,
+                    clerkOrgId: invitation.clerkOrgId,
+                },
+            },
+        });
+
+        if (existingMember) {
+            // Mark invitation as accepted anyway
+            await prisma.invitation.update({
+                where: { id },
+                data: { acceptedAt: new Date() },
+            });
+            return res.json({ message: 'You are already a member of this organization' });
+        }
+
+        // Create the organization member
+        const member = await prisma.organizationMember.create({
+            data: {
+                clerkUserId: userId,
+                clerkOrgId: invitation.clerkOrgId,
+                roleId: invitation.roleId,
+                invitedBy: invitation.invitedBy,
+            },
+            include: { role: true },
+        });
+
+        // Mark invitation as accepted
+        await prisma.invitation.update({
+            where: { id },
+            data: { acceptedAt: new Date() },
+        });
+
+        res.json({
+            message: 'Invitation accepted successfully',
+            member: {
+                id: member.id,
+                role: member.role.name,
+                organizationId: invitation.clerkOrgId,
+            },
+        });
+    } catch (error) {
+        console.error('Accept invitation error:', error);
+        res.status(500).json({ error: 'Failed to accept invitation' });
+    }
+});
+
+/**
+ * POST /api/auth/sync-member-after-invite
+ * Sync a user to our database after they accepted a Clerk invitation
+ * Looks up pending invitation to get the correct role, then removes the invitation
+ * NOTE: Only requires auth + orgId header, NO membership check - user just joined via Clerk
+ */
+router.post('/sync-member-after-invite', requireAuth, async (req: Request, res: Response) => {
+    try {
+        const { userId, orgId } = req.auth!;
+
+        if (!orgId) {
+            return res.status(400).json({ error: 'Organization ID is required (x-organization-id header)' });
+        }
+
+        // Get user email from Clerk
+        const user = await clerkClient.users.getUser(userId);
+        const userEmail = user.emailAddresses.find(
+            (email) => email.id === user.primaryEmailAddressId
+        )?.emailAddress;
+
+        if (!userEmail) {
+            return res.status(400).json({ error: 'User has no email address' });
+        }
+
+        // Check if member already exists in our database
+        const existingMember = await prisma.organizationMember.findUnique({
+            where: {
+                clerkUserId_clerkOrgId: {
+                    clerkUserId: userId,
+                    clerkOrgId: orgId,
+                },
+            },
+            include: { role: true },
+        });
+
+        if (existingMember) {
+            return res.json({
+                message: 'Member already synced',
+                member: existingMember,
+            });
+        }
+
+        // Find pending invitation for this user in this org
+        const invitation = await prisma.invitation.findFirst({
+            where: {
+                email: { equals: userEmail, mode: 'insensitive' },
+                clerkOrgId: orgId,
+                acceptedAt: null, // Not yet accepted
+            },
+        });
+
+        let roleId: string;
+        let invitedBy: string | null = null;
+
+        if (invitation) {
+            // Use role from invitation
+            roleId = invitation.roleId;
+            invitedBy = invitation.invitedBy;
+        } else {
+            // No invitation found - use default 'viewer' role
+            const defaultRole = await prisma.role.findFirst({ where: { name: 'viewer' } })
+                || await prisma.role.findFirst();
+            if (!defaultRole) {
+                return res.status(500).json({ error: 'No roles configured. Please run role seed.' });
+            }
+            roleId = defaultRole.id;
+        }
+
+        // Create member in our database
+        const member = await prisma.organizationMember.create({
+            data: {
+                clerkUserId: userId,
+                clerkOrgId: orgId,
+                roleId,
+                invitedBy,
+            },
+            include: { role: true },
+        });
+
+        // Delete the invitation after successful member creation
+        if (invitation) {
+            await prisma.invitation.delete({
+                where: { id: invitation.id },
+            });
+        }
+
+        res.status(201).json({
+            message: 'Member synced successfully',
+            member,
+            invitationUsed: !!invitation,
+        });
+    } catch (error) {
+        console.error('Sync member error:', error);
+        res.status(500).json({ error: 'Failed to sync member' });
+    }
+});
+
 export default router;

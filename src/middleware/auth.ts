@@ -40,10 +40,23 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         try {
             const payload = await clerkClient.verifyToken(token);
 
-            // Check for x-organization-id header first, fallback to JWT claim
+            // Clerk stores org info in payload.o.id
+            const jwtPayload = payload as { o?: { id?: string }; org_id?: string };
+            const jwtOrgId = jwtPayload.o?.id || jwtPayload.org_id || null;
+
+            // Get organization ID from header
             const headerOrgId = req.headers['x-organization-id'] as string | undefined;
-            const jwtOrgId = (payload as { org_id?: string }).org_id;
-            const orgId = headerOrgId || jwtOrgId || null;
+
+            // If header is provided, validate it matches the JWT org
+            if (headerOrgId && jwtOrgId && headerOrgId !== jwtOrgId) {
+                return res.status(403).json({
+                    error: 'Forbidden: Organization ID mismatch',
+                    message: 'The x-organization-id header does not match your JWT organization'
+                });
+            }
+
+            // Use header org if provided, otherwise fall back to JWT org
+            const orgId = headerOrgId || jwtOrgId;
 
             req.auth = {
                 userId: payload.sub,
