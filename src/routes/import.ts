@@ -52,18 +52,20 @@ interface ImportExpenseCategory {
 }
 
 interface ImportError {
-    type: 'trip' | 'expense' | 'category';
+    type: 'trip' | 'expense' | 'category' | 'vehicle';
     index: number;
     tripNo?: string;
     message: string;
 }
 
+
 // POST /api/import/bulk - Bulk import trips with expenses using batch inserts
 router.post('/bulk', asyncHandler(async (req: Request, res: Response) => {
-    const { trips, expenses, expenseCategories } = req.body as {
+    const { trips, expenses, expenseCategories, vehicles } = req.body as {
         trips: ImportTrip[];
         expenses: ImportExpense[];
         expenseCategories?: ImportExpenseCategory[];
+        vehicles?: Array<string>;
     };
 
     const organizationId = req.auth!.orgId!;
@@ -113,6 +115,43 @@ router.post('/bulk', asyncHandler(async (req: Request, res: Response) => {
                     type: 'category',
                     index: i,
                     message: `Failed to create category "${cat.name}": ${error.message}`,
+                });
+            }
+        }
+    }
+
+    if (vehicles && Array.isArray(vehicles)) {
+        for (let i = 0; i < vehicles.length; i++) {
+            const vehicle = vehicles[i];
+            try {
+                if (!vehicle) {
+                    errors.push({
+                        type: 'vehicle',
+                        index: i,
+                        message: `Vehicle at index ${i}: vehNo is required`,
+                    });
+                    continue;
+                }
+
+                // Check if vehicle already exists for this organization
+                const existing = await prisma.vehicle.findFirst({
+                    where: { organizationId, vehNo: vehicle },
+                });
+
+                if (!existing) {
+                    await prisma.vehicle.create({
+                        data: {
+                            organizationId,
+                            vehNo: vehicle,
+                            vehType: 'Other'
+                        },
+                    });
+                }
+            } catch (error: any) {
+                errors.push({
+                    type: 'vehicle',
+                    index: i,
+                    message: `Failed to create vehicle "${vehicle}": ${error.message}`,
                 });
             }
         }
