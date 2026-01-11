@@ -205,7 +205,7 @@ model StockItem {
 model Trip {
   id              String   @id @default(uuid())
   organizationId  String   @map("organization_id")
-  tripNo          Int      @map("trip_no")
+  tripNo          String   @map("trip_no")
   date            DateTime @db.Date
   vehNo           String   @map("veh_no")
   driverName      String   @default("") @map("driver_name")
@@ -227,6 +227,11 @@ model Trip {
   exIncome        Decimal  @default(0) @db.Decimal(12, 2) @map("ex_income")
   driverBal       Decimal  @default(0) @db.Decimal(12, 2) @map("driver_bal")
   lockStatus      Boolean  @default(false) @map("lock_status")
+  // New fields for import
+  plantName       String   @default("") @map("plant_name")
+  carQty          Int      @default(0) @map("car_qty")
+  loadKm          Decimal  @default(0) @map("load_km") @db.Decimal(10, 2)
+  emptyKm         Decimal  @default(0) @map("empty_km") @db.Decimal(10, 2)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -238,7 +243,7 @@ model Trip {
 model TripBook {
   id               String   @id @default(uuid())
   organizationId   String   @map("organization_id")
-  tripNo           Int      @map("trip_no")
+  tripNo           String   @map("trip_no")
   date             DateTime @db.Date
   lrNo             String   @default("") @map("lr_no")
   billingPartyId   String?  @map("billing_party_id")
@@ -274,7 +279,7 @@ model TripBook {
 model DriverAdvance {
   id             String   @id @default(uuid())
   organizationId String   @map("organization_id")
-  tripNo         Int      @default(0) @map("trip_no")
+  tripNo         String   @default("") @map("trip_no")
   date           DateTime @db.Date
   driverName     String   @map("driver_name")
   mode           String   @default("")
@@ -294,7 +299,7 @@ model DriverAdvance {
 model Expense {
   id             String   @id @default(uuid())
   organizationId String   @map("organization_id")
-  tripNo         Int      @default(0) @map("trip_no")
+  tripNo         String   @default("") @map("trip_no")
   date           DateTime @db.Date
   expenseType    String   @map("expense_type")
   amount         Decimal  @db.Decimal(12, 2)
@@ -313,7 +318,7 @@ model Expense {
 model ReturnTrip {
   id               String   @id @default(uuid())
   organizationId   String   @map("organization_id")
-  tripNo           Int      @default(0) @map("trip_no")
+  tripNo           String   @default("") @map("trip_no")
   date             DateTime @db.Date
   billingPartyId   String?  @map("billing_party_id")
   billingPartyName String   @default("") @map("billing_party_name")
@@ -340,7 +345,7 @@ model ReturnTrip {
 model PartyPayment {
   id               String   @id @default(uuid())
   organizationId   String   @map("organization_id")
-  tripNo           Int      @default(0) @map("trip_no")
+  tripNo           String   @default("") @map("trip_no")
   date             DateTime @db.Date
   billingPartyId   String?  @map("billing_party_id")
   billingPartyName String   @default("") @map("billing_party_name")
@@ -364,7 +369,7 @@ model PartyPayment {
 model MarketVehPayment {
   id              String   @id @default(uuid())
   organizationId  String   @map("organization_id")
-  tripNo          Int      @default(0) @map("trip_no")
+  tripNo          String   @default("") @map("trip_no")
   date            DateTime @db.Date
   transporterId   String?  @map("transporter_id")
   transporterName String   @default("") @map("transporter_name")

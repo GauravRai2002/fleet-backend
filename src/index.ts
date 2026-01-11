@@ -23,6 +23,7 @@ import marketVehPaymentsRouter from './routes/marketVehPayments';
 import stockEntriesRouter from './routes/stockEntries';
 import dashboardRouter from './routes/dashboard';
 import reportsRouter from './routes/reports';
+import importRouter from './routes/import';
 
 // Load environment variables
 dotenv.config();
@@ -38,7 +39,7 @@ app.use(cors({
 }));
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for bulk imports
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -68,6 +69,7 @@ app.use('/api/market-veh-payments', marketVehPaymentsRouter);
 app.use('/api/stock-entries', stockEntriesRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/reports', reportsRouter);
+app.use('/api/import', importRouter);
 
 // 404 handler
 app.use((_req, res) => {

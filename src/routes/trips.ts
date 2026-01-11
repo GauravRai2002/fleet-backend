@@ -21,15 +21,25 @@ const calculateTripValues = (data: {
     return { tripKm, average, totalTripFare, profitStatement };
 };
 
-// GET next trip number
+// GET next trip number (for numeric sequences - clients can still use custom formats)
 router.get('/next-number', asyncHandler(async (req: Request, res: Response) => {
-    const lastTrip = await prisma.trip.findFirst({
+    // Find the highest numeric tripNo
+    const trips = await prisma.trip.findMany({
         where: { organizationId: req.auth!.orgId! },
-        orderBy: { tripNo: 'desc' },
         select: { tripNo: true },
     });
-    const nextTripNo = lastTrip ? lastTrip.tripNo + 1 : 1001;
-    res.json({ success: true, data: { nextTripNo } });
+
+    // Extract numeric part from tripNos and find max
+    let maxNumeric = 1000;
+    for (const t of trips) {
+        const num = parseInt(t.tripNo, 10);
+        if (!isNaN(num) && num > maxNumeric) {
+            maxNumeric = num;
+        }
+    }
+
+    const nextTripNo = maxNumeric + 1;
+    res.json({ success: true, data: { nextTripNo: nextTripNo.toString() } });
 }));
 
 // GET all trips
@@ -66,24 +76,27 @@ router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
 // POST create trip
 router.post('/', asyncHandler(async (req: Request, res: Response) => {
     const {
-        date, vehNo, driverName, fromLocation, toLocation,
+        tripNo, date, vehNo, driverName, fromLocation, toLocation,
         fuelExpAmt, tripFare, rtFare, tripExpense,
         stMiter, endMiter, dieselRate, ltr, isMarketTrip,
-        exIncome, driverBal
+        exIncome, driverBal,
+        // New import fields
+        plantName, carQty, loadKm, emptyKm
     } = req.body;
 
+    if (!tripNo) throw new ApiError(400, ErrorCodes.VALIDATION_ERROR, 'Trip number is required', 'tripNo');
     if (!date) throw new ApiError(400, ErrorCodes.VALIDATION_ERROR, 'Date is required', 'date');
     if (!vehNo) throw new ApiError(400, ErrorCodes.VALIDATION_ERROR, 'Vehicle number is required', 'vehNo');
     if (!fromLocation) throw new ApiError(400, ErrorCodes.VALIDATION_ERROR, 'From location is required', 'fromLocation');
     if (!toLocation) throw new ApiError(400, ErrorCodes.VALIDATION_ERROR, 'To location is required', 'toLocation');
 
-    // Get next trip number for this organization
-    const lastTrip = await prisma.trip.findFirst({
-        where: { organizationId: req.auth!.orgId! },
-        orderBy: { tripNo: 'desc' },
-        select: { tripNo: true },
+    // Check for duplicate tripNo
+    const existingTrip = await prisma.trip.findFirst({
+        where: { organizationId: req.auth!.orgId!, tripNo: String(tripNo) },
     });
-    const tripNo = lastTrip ? lastTrip.tripNo + 1 : 1001;
+    if (existingTrip) {
+        throw new ApiError(400, ErrorCodes.VALIDATION_ERROR, `Trip with number ${tripNo} already exists`, 'tripNo');
+    }
 
     // Calculate values
     const calculated = calculateTripValues({ stMiter, endMiter, ltr, tripFare, rtFare, tripExpense });
@@ -112,6 +125,11 @@ router.post('/', asyncHandler(async (req: Request, res: Response) => {
             isMarketTrip: isMarketTrip || false,
             exIncome: exIncome || 0,
             driverBal: driverBal || 0,
+            // New import fields
+            plantName: plantName || '',
+            carQty: carQty || 0,
+            loadKm: loadKm || 0,
+            emptyKm: emptyKm || 0,
         },
     });
 
@@ -138,7 +156,9 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
         date, vehNo, driverName, fromLocation, toLocation,
         fuelExpAmt, tripFare, rtFare, tripExpense,
         stMiter, endMiter, dieselRate, ltr, isMarketTrip,
-        exIncome, driverBal, lockStatus
+        exIncome, driverBal, lockStatus,
+        // New import fields
+        plantName, carQty, loadKm, emptyKm
     } = req.body;
 
     // Recalculate values
@@ -178,6 +198,11 @@ router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
             ...(exIncome !== undefined && { exIncome }),
             ...(driverBal !== undefined && { driverBal }),
             ...(lockStatus !== undefined && { lockStatus }),
+            // New import fields
+            ...(plantName !== undefined && { plantName }),
+            ...(carQty !== undefined && { carQty }),
+            ...(loadKm !== undefined && { loadKm }),
+            ...(emptyKm !== undefined && { emptyKm }),
             tripKm: calculated.tripKm,
             average: calculated.average,
             totalTripFare: calculated.totalTripFare,
